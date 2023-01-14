@@ -28,7 +28,7 @@ class Config:
     
     # Task hyperparameters 
     dataset : str = 'MNIST'
-    n_epoch : int = 10 # The number of update 
+    n_epoch : int = 11 # The number of update 
     
     
     # Model hyperparameters

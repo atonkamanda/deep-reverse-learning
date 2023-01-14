@@ -28,7 +28,7 @@ class Config:
     
     # Task hyperparameters 
     dataset : str = 'MNIST'
-    n_epoch : int = 11 # The number of update 
+    n_epoch : int = 10 # The number of update 
     
     
     # Model hyperparameters
@@ -195,10 +195,13 @@ class Trainer:
         
             # sum up batch loss
             test_loss += torch.mean(self.criterion(output, target)).item()
-            # Compute accuracy         print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(test_loss, correct, len(self.test_data.dataset),100. * correct / len(self.test_data.dataset)))
+            # Compute accuracy 
+            pred = output.data.max(1, keepdim=True)[1]
+            correct += pred.eq(target.data.view_as(pred)).cpu().sum()
+        
+        test_loss /= len(self.test_data.dataset)
+        print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(test_loss, correct, len(self.test_data.dataset),100. * correct / len(self.test_data.dataset)))
         # Return accuracy 
-        return correct / len(test_loader.dataset)
- 
         return correct / len(self.test_data.dataset)
  
 

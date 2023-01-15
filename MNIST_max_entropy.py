@@ -1,16 +1,17 @@
-import os; os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import os #; os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
-import pathlib 
-from torch.utils.tensorboard import SummaryWriter
+import pathlib
 import matplotlib.pyplot as plt
-import argparse 
 from dataclasses import dataclass
-from omegaconf import OmegaConf
-
+from omegaconf import OmegaConf,DictConfig
+import hydra
+import pickle
+import numpy as np
+import pandas as pd
 @dataclass
 class Config:
     
@@ -18,6 +19,7 @@ class Config:
     seed : int = 0
     device : str = 'cuda' if torch.cuda.is_available() else 'cpu'
     load_model : bool = False
+    job_num : int = 0
 
     # Logging
     logdir : str = pathlib.Path.cwd() / 'logs'
@@ -28,15 +30,15 @@ class Config:
     
     # Task hyperparameters 
     dataset : str = 'MNIST'
-    n_epoch : int = 10 # The number of update 
+    epoch : int = 10 # The number of update 
     
     
     # Model hyperparameters
     batch_size : int = 64
     can_sleep : bool = True
-    sleep_itr : int = 1000
-    wake_lr : float = 1e-2
-    sleep_lr : float = 1e-2
+    sleep_itr : int = 10000
+    wake_lr : float = 0.02
+    sleep_lr : float = 0.001    
     
 class DataManager():
     def __init__(self,config):
@@ -110,12 +112,13 @@ class Trainer:
         self.c = config
         self.seed = self.c.seed
         self.device = self.c.device
+        self.logger = Logger()
         self.train_data, self.test_data = DataManager(self.c).load_MNIST()
         self.model = CNN_MNIST(self.c).to(self.c.device)
         self.sleep_itr = self.c.sleep_itr
         self.criterion = nn.CrossEntropyLoss()
-        self.wake_optimizer = optim.SGD(self.model.parameters(), lr=0.02, momentum=0.5)
-        self.sleep_optimizer = optim.SGD(self.model.parameters(), lr=0.001, momentum=0.5)
+        self.wake_optimizer = optim.SGD(self.model.parameters(), lr=self.c.wake_lr, momentum=0.5)
+        self.sleep_optimizer = optim.SGD(self.model.parameters(), lr=self.c.sleep_lr, momentum=0.5)
 
     def train(self, epoch):
         self.model.train()
@@ -157,33 +160,17 @@ class Trainer:
                     loss = -entropy
                     loss.backward()
                     self.sleep_optimizer.step()
-                    # Add loss to the list
-                    save_entropy.append(entropy.item())
-                    if i % 5000 == 0:
-                        print(entropy.item())
-                    
-                        
-                        
-                
-            print('Sleep Epoch:', e+1)
+                    # Add los    # Save the plot to a file
+    #plt.savefig('plot.png')h:', e+1)
             sleep_accuracy  = self.eval().item()
             sleep_accuracy_list.append(sleep_accuracy)
             self.model.wake = True
         # Plot loss and accuracy
-        plt.plot(save_loss)
-        plt.savefig('loss.png')
-        plt.show()
-        plt.plot(save_accuracy)
-        plt.savefig('accuracy.png')
-        plt.show()
-        # Plot entropy
-        plt.plot(save_entropy)
-        plt.savefig('entropy.png')
-        plt.show()
-        # Plot sleep accuracy
-        plt.plot(sleep_accuracy_list)
-        plt.savefig('sleep_accuracy.png')
-        plt.show()
+        self.logger.add_log(self.c.job_num,'Wake loss', save_loss)
+        self.logger.add_log(self.c.job_num,'Wake accuracy', save_accuracy)
+        self.logger.add_log(self.c.job_num,'Entropy', save_entropy)
+        self.logger.add_log(self.c.job_num,'Sleep accuracy', sleep_accuracy_list)
+        self.logger.write_to_csv('log.csv')
     def eval(self):
         self.model.eval()
         test_loss = 0
@@ -203,21 +190,60 @@ class Trainer:
         print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(test_loss, correct, len(self.test_data.dataset),100. * correct / len(self.test_data.dataset)))
         # Return accuracy 
         return correct / len(self.test_data.dataset)
- 
 
-def main():
-    # Create config
-    config = OmegaConf.structured(Config)
-    command_line = OmegaConf.from_cli()
-    config = OmegaConf.merge(config, command_line)
-    OmegaConf.save(config, 'config.yaml')
-    #OmegaConf.load('config.yaml')
+class Logger:
+    def __init__(self):
+        self.run_info = {}
+
+    def add_log(self,run_num,name,values):
+        # Add the infos to the run_info dictionary
+        run_num = str(run_num)
+        if run_num not in self.run_info:
+            self.run_info[run_num] = {}
+        self.run_info[run_num][name] = values
+    
+    def write_to_csv(self, file_name):
+        # Create DataFrame from input dictionary
+        df = pd.DataFrame.from_dict(self.run_info, orient='index')
+        if os.path.isfile (file_name):
+            old_df = pd.read_csv(file_name)
+            df = pd.concat([old_df, df], ignore_index=True)
+        df.to_csv(file_name, index=False)
+    
+        
+    def plot_with_std(self,data, labels):
+        # Plot the data
+        for i, d in enumerate(data):
+            plt.plot(d, label=labels[i])
+
+        # Compute the standard deviation
+        std = np.std(data, axis=0)
+
+        # Plot the standard deviation transparently behind the run lines
+        plt.fill_between(range(len(std)), np.min(data, axis=0)-std, np.max(data, axis=0)+std, alpha=0.2) # alpha is the transparency
+        plt.legend()
+        plt.show()
+        plt.savefig('plot.png')
+        
+            
+@hydra.main(version_base=None, config_path="conf", config_name="config")
+def main(cfg : DictConfig) -> None:
+    # Load default config
+    default_config = OmegaConf.structured(Config)
+    # Merge default config with run config, run config overrides if there is a conflict
+    config = OmegaConf.merge(default_config, cfg)
+    #OmegaConf.save(config, 'config.yaml') 
+    
+    
+    hydra_cfg = hydra.core.hydra_config.HydraConfig.get()
+    job_num = hydra_cfg.job.num
+    print(f'Hydra job number: {job_num}')
+    config.job_num = job_num
     
     trainer = Trainer(config)
-    trainer.train(10)
-    #trainer.eval()
-
-
+    trainer.train(config.epoch)
+    
+    
 if __name__ == '__main__':
     main()
     print('Finished correctly')

@@ -12,6 +12,7 @@ import hydra
 import pickle
 import numpy as np
 import pandas as pd
+from utils import Logger,EntropyHook
 @dataclass
 class Config:
     
@@ -72,38 +73,59 @@ class DataManager():
 
 # Initialize MLP
 
-class CNN_MNIST(nn.Module):
+class MLP(nn.Module):
 
-    def __init__(self,config):
-        super(CNN_MNIST, self).__init__()
-        # CNN for MNIST dataset
+    def __init__(self, config:Config):
+        super(MLP, self).__init__()
         self.c = config
-        self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
-        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
-        self.fc1 = nn.Linear(320, 50)
-        self.fc2 = nn.Linear(50, 10)
+        # Model
+        self.l1 = nn.Linear(784, 520)
+        self.l2 = nn.Linear(520, 320)
+        self.l3 = nn.Linear(320, 240)
+        self.l4 = nn.Linear(240, 120)
+        self.l5 = nn.Linear(120, 10)
+        
         # Start by sleeping 
         self.wake = True
         
         # Useful for experiments 
         self.can_sleep = self.c.can_sleep
         
-    def forward(self, x):
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, 2)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, 2)
-        x = x.view(-1, 320)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        x = F.softmax(x, dim=1)
-        # Compute entropy of the output distribution
-            
         
-        return x 
+    def forward(self, x):
+        #(n, 1, 28, 28)-> (n, 784)
+        """x = x.view(-1, 784)
+        x = F.relu(self.l1(x))
+        x = F.relu(self.l2(x))
+  
+        x = F.relu(self.l3(x))
+        x = F.relu(self.l4(x))
+        x = F.softmax(self.l5(x), dim=1)"""
+        entropy = 0 
+        x = x.view(-1, 784)
+        x = self.l1(x)
+        # Compute e
+        entropy += torch.sum(-F.softmax(x, dim=1) * F.log_softmax(x, dim=1), dim=1)
+        x = F.relu(x)
+        x = self.l2(x)
+        x = F.relu(x)
+        # Compute e
+        entropy += torch.sum(-F.softmax(x, dim=1) * F.log_softmax(x, dim=1), dim=1)
+  
+        x = self.l3(x)
+        x = F.relu(x)
+        # Compute e
+        entropy += torch.sum(-F.softmax(x, dim=1) * F.log_softmax(x, dim=1), dim=1)
+        x = self.l4(x)
+        x = F.relu(x)
+        # Compute e
+        entropy += torch.sum(-F.softmax(x, dim=1) * F.log_softmax(x, dim=1), dim=1)
+        x = self.l5(x)
+        # Compute e
+        entropy += torch.sum(-F.softmax(x, dim=1) * F.log_softmax(x, dim=1), dim=1)
+        x = F.softmax(x, dim=1)
+        
+        return x,entropy
 
         
 
@@ -114,12 +136,12 @@ class Trainer:
         self.device = self.c.device
         self.logger = Logger()
         self.train_data, self.test_data = DataManager(self.c).load_MNIST()
-        self.model = CNN_MNIST(self.c).to(self.c.device)
+        self.model = MLP(self.c).to(self.c.device)
         self.sleep_itr = self.c.sleep_itr
         self.criterion = nn.CrossEntropyLoss()
         self.wake_optimizer = optim.SGD(self.model.parameters(), lr=self.c.wake_lr, momentum=0.5)
         self.sleep_optimizer = optim.SGD(self.model.parameters(), lr=self.c.sleep_lr, momentum=0.5)
-
+        
     def train(self, epoch):
         self.model.train()
         save_loss = []
@@ -132,7 +154,8 @@ class Trainer:
                             self.wake_optimizer.zero_grad()
                             data = data.to(self.device)
                             target = target.to(self.device)
-                            output = self.model(data)
+                            
+                            output,_ = self.model(data)
                             loss = self.criterion(output, target)
 
                         
@@ -145,31 +168,37 @@ class Trainer:
                             if batch_idx % 100 == 0:
                                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(e+1, batch_idx * len(data), len(self.train_data.dataset),100. * batch_idx / len(self.train_data), loss.item()))
                         
-            print('Wake epoch:', e+1)
-            accuracy  = self.eval().item()
-            save_accuracy.append(accuracy)
+                    print('Wake epoch:', e+1)
+                    accuracy  = self.eval().item()
+                    save_accuracy.append(accuracy)
             if self.model.can_sleep == True:
                 self.model.wake = False
             if self.model.wake == False:
+                self.entropy_hook = EntropyHook(self.model.modules())
                 for i in range(self.sleep_itr):
                     noise_injection = torch.rand(64,1,28,28)
                     self.sleep_optimizer.zero_grad()
                     data = noise_injection.to(self.device)
-                    output = self.model(data)
-                    entropy = -torch.sum(output*torch.log(output))
+                    
+                    output,entropy = self.model(data)
+                    #print(entropy.shape)
+                    #print(entropy.sum())
+                    entropy = entropy.sum()
+                    #entropy = -torch.sum(output*torch.log(output))
                     loss = -entropy
                     loss.backward()
                     self.sleep_optimizer.step()
-                    # Add los    # Save the plot to a file
-    #plt.savefig('plot.png')h:', e+1)
-            sleep_accuracy  = self.eval().item()
-            sleep_accuracy_list.append(sleep_accuracy)
-            self.model.wake = True
+            #print(f"The sum of the entropies of all the layers is: {self.entropy_hook.get_entropy_sum()}")       
+                sleep_accuracy  = self.eval().item()
+                sleep_accuracy_list.append(sleep_accuracy)
+                print('Sleep epoch:', e+1)
+                self.model.wake = True
+                self.entropy_hook.remove()
         # Plot loss and accuracy
-        self.logger.add_log(self.c.job_num,'Wake loss', save_loss)
-        self.logger.add_log(self.c.job_num,'Wake accuracy', save_accuracy)
-        self.logger.add_log(self.c.job_num,'Entropy', save_entropy)
-        self.logger.add_log(self.c.job_num,'Sleep accuracy', sleep_accuracy_list)
+        self.logger.add_log('Wake loss', save_loss)
+        self.logger.add_log('Wake accuracy', save_accuracy)
+        self.logger.add_log('Entropy', save_entropy)
+        self.logger.add_log('Sleep accuracy', sleep_accuracy_list)
         self.logger.write_to_csv('log.csv')
     def eval(self):
         self.model.eval()
@@ -178,7 +207,7 @@ class Trainer:
         for data, target in self.test_data:
             data = data.to(self.device)
             target = target.to(self.device)
-            output = self.model(data)
+            output,_ = self.model(data)
         
             # sum up batch loss
             test_loss += torch.mean(self.criterion(output, target)).item()
@@ -191,39 +220,6 @@ class Trainer:
         # Return accuracy 
         return correct / len(self.test_data.dataset)
 
-class Logger:
-    def __init__(self):
-        self.run_info = {}
-
-    def add_log(self,run_num,name,values):
-        # Add the infos to the run_info dictionary
-        run_num = str(run_num)
-        if run_num not in self.run_info:
-            self.run_info[run_num] = {}
-        self.run_info[run_num][name] = values
-    
-    def write_to_csv(self, file_name):
-        # Create DataFrame from input dictionary
-        df = pd.DataFrame.from_dict(self.run_info, orient='index')
-        if os.path.isfile (file_name):
-            old_df = pd.read_csv(file_name)
-            df = pd.concat([old_df, df], ignore_index=True)
-        df.to_csv(file_name, index=False)
-    
-        
-    def plot_with_std(self,data, labels):
-        # Plot the data
-        for i, d in enumerate(data):
-            plt.plot(d, label=labels[i])
-
-        # Compute the standard deviation
-        std = np.std(data, axis=0)
-
-        # Plot the standard deviation transparently behind the run lines
-        plt.fill_between(range(len(std)), np.min(data, axis=0)-std, np.max(data, axis=0)+std, alpha=0.2) # alpha is the transparency
-        plt.legend()
-        plt.show()
-        plt.savefig('plot.png')
         
             
 @hydra.main(version_base=None, config_path="conf", config_name="config")

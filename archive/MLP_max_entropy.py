@@ -90,7 +90,8 @@ class MLP(nn.Module):
         
         # Useful for experiments 
         self.can_sleep = self.c.can_sleep
-        
+        # Add dropout
+        self.dropout = nn.Dropout(p=0.2)
         
     def forward(self, x):
         #(n, 1, 28, 28)-> (n, 784)
@@ -150,6 +151,7 @@ class Trainer:
         sleep_accuracy_list = []
         for e in range(epoch):
             if self.model.wake == True:
+                    print('Wake epoch:', e+1)
                     for batch_idx, (data, target) in enumerate(self.train_data):
                             self.wake_optimizer.zero_grad()
                             data = data.to(self.device)
@@ -168,30 +170,27 @@ class Trainer:
                             if batch_idx % 100 == 0:
                                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(e+1, batch_idx * len(data), len(self.train_data.dataset),100. * batch_idx / len(self.train_data), loss.item()))
                         
-                    print('Wake epoch:', e+1)
+                    
                     accuracy  = self.eval().item()
                     save_accuracy.append(accuracy)
             if self.model.can_sleep == True:
                 self.model.wake = False
             if self.model.wake == False:
-                self.entropy_hook = EntropyHook(self.model.modules())
+                print('Sleep epoch:', e+1)
                 for i in range(self.sleep_itr):
                     noise_injection = torch.rand(64,1,28,28)
                     self.sleep_optimizer.zero_grad()
                     data = noise_injection.to(self.device)
                     
                     output,entropy = self.model(data)
-                    #print(entropy.shape)
-                    #print(entropy.sum())
-                    entropy = entropy.sum()
-                    #entropy = -torch.sum(output*torch.log(output))
+                 
+                    entropy= -torch.sum(output*torch.log2(output),dim=1)
                     loss = -entropy
                     loss.backward()
                     self.sleep_optimizer.step()
             #print(f"The sum of the entropies of all the layers is: {self.entropy_hook.get_entropy_sum()}")       
                 sleep_accuracy  = self.eval().item()
                 sleep_accuracy_list.append(sleep_accuracy)
-                print('Sleep epoch:', e+1)
                 self.model.wake = True
                 self.entropy_hook.remove()
         # Plot loss and accuracy
@@ -241,5 +240,6 @@ def main(cfg : DictConfig) -> None:
     
     
 if __name__ == '__main__':
+    print("TEst")
     main()
     print('Finished correctly')

@@ -1,2 +1,2 @@
 #!/bin/bash
-python MNIST_max_entropy.py --multirun seed=1,2,3,4,5,6,7,8,9,10 can_sleep=True,False
+python MNIST_max_entropy.py --multirun sleep_lr=0.001,0.01 can_sleep=True

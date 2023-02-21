@@ -12,6 +12,9 @@ import hydra
 import pickle
 import numpy as np
 import pandas as pd
+from utils import Logger
+from termcolor import colored
+import time  
 @dataclass
 class Config:
     
@@ -36,9 +39,12 @@ class Config:
     # Model hyperparameters
     batch_size : int = 64
     can_sleep : bool = True
-    sleep_itr : int = 10000
+    sleep_itr : int = 1000
     wake_lr : float = 0.02
-    sleep_lr : float = 0.001    
+    sleep_lr : float = 0.01    
+
+    
+
     
 class DataManager():
     def __init__(self,config):
@@ -82,11 +88,13 @@ class CNN_MNIST(nn.Module):
         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
         self.fc1 = nn.Linear(320, 50)
         self.fc2 = nn.Linear(50, 10)
-        # Start by sleeping 
         self.wake = True
         
         # Useful for experiments 
         self.can_sleep = self.c.can_sleep
+        
+        # Add dropout 
+        self.dropout = nn.Dropout(p=0.3)
         
     def forward(self, x):
         x = self.conv1(x)
@@ -96,16 +104,17 @@ class CNN_MNIST(nn.Module):
         x = F.relu(x)
         x = F.max_pool2d(x, 2)
         x = x.view(-1, 320)
+        x = self.dropout(x)
         x = self.fc1(x)
         x = F.relu(x)
+        x = self.dropout(x)
         x = self.fc2(x)
         x = F.softmax(x, dim=1)
         # Compute entropy of the output distribution
             
         
         return x 
-
-        
+  
 
 class Trainer:
     def __init__(self, config:Config):
@@ -119,58 +128,83 @@ class Trainer:
         self.criterion = nn.CrossEntropyLoss()
         self.wake_optimizer = optim.SGD(self.model.parameters(), lr=self.c.wake_lr, momentum=0.5)
         self.sleep_optimizer = optim.SGD(self.model.parameters(), lr=self.c.sleep_lr, momentum=0.5)
-
     def train(self, epoch):
         self.model.train()
         save_loss = []
         save_accuracy = []
         save_entropy = []
         sleep_accuracy_list = []
+        
         for e in range(epoch):
             if self.model.wake == True:
-                    for batch_idx, (data, target) in enumerate(self.train_data):
-                            self.wake_optimizer.zero_grad()
-                            data = data.to(self.device)
-                            target = target.to(self.device)
-                            output = self.model(data)
-                            loss = self.criterion(output, target)
+                print('Wake epoch:', e+1)
+                for batch_idx, (data, target) in enumerate(self.train_data):
+                    self.wake_optimizer.zero_grad()
+                    data = data.to(self.device)
+                    target = target.to(self.device)
+                    output = self.model(data)
+                    loss = self.criterion(output, target)
 
-                        
-                            loss.backward()
-                            self.wake_optimizer.step()
                 
-                            save_loss.append(loss.item())
+                    loss.backward()
+                    
+                    
+                    self.wake_optimizer.step()
+                    # Add gradient clipping
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5)
+
+        
+                    save_loss.append(loss.item())
+                
                         
-                                
-                            if batch_idx % 100 == 0:
-                                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(e+1, batch_idx * len(data), len(self.train_data.dataset),100. * batch_idx / len(self.train_data), loss.item()))
+                    if batch_idx % 100 == 0:
+                        epoch = 'E: {:.0f} '.format(e+1, epoch)
+                        loss_line = 'Loss: {:.6f} '.format(save_loss[-1])
+                        percent = '(Completion: {:.0f}%) '.format(100. * batch_idx / len(self.train_data))
                         
-            print('Wake epoch:', e+1)
+                        
+                        print(colored(epoch, 'cyan'), end='')
+                        print(colored(loss_line, 'red'), end=' ') 
+                        print(colored(percent, 'yellow'), end='\n')
+
+        
             accuracy  = self.eval().item()
-            save_accuracy.append(accuracy)
+            save_accuracy.append(accuracy)  
+            
+            
             if self.model.can_sleep == True:
                 self.model.wake = False
             if self.model.wake == False:
+                print('Sleep epoch:', e+1)
                 for i in range(self.sleep_itr):
                     noise_injection = torch.rand(64,1,28,28)
                     self.sleep_optimizer.zero_grad()
                     data = noise_injection.to(self.device)
                     output = self.model(data)
-                    entropy = -torch.sum(output*torch.log(output))
+                    entropy = -torch.sum(output*torch.log2(output), dim=1)
+                    entropy = torch.sum(entropy)
                     loss = -entropy
                     loss.backward()
+                    # Add gradient clipping
+                    #torch.nn.utils.clip_grad_norm_(self.model.parameters(),5)
                     self.sleep_optimizer.step()
-                    # Add los    # Save the plot to a file
-    #plt.savefig('plot.png')h:', e+1)
-            sleep_accuracy  = self.eval().item()
-            sleep_accuracy_list.append(sleep_accuracy)
-            self.model.wake = True
-        # Plot loss and accuracy
-        self.logger.add_log(self.c.job_num,'Wake loss', save_loss)
-        self.logger.add_log(self.c.job_num,'Wake accuracy', save_accuracy)
-        self.logger.add_log(self.c.job_num,'Entropy', save_entropy)
-        self.logger.add_log(self.c.job_num,'Sleep accuracy', sleep_accuracy_list)
-        self.logger.write_to_csv('log.csv')
+             
+                    if i % 100 == 0:
+                        epoch = 'E: {:.0f} '.format(e+1, epoch)
+                        loss_line = 'Entropy: {:.6f} '.format(loss)
+                        percent = '(Completion: {:.0f}%) '.format(100. * i / self.sleep_itr)
+                
+                            
+
+                        print(colored(epoch, 'cyan'), end='')
+                        print(colored(loss_line, 'red'), end=' ')
+                        print(colored(percent, 'magenta'), end='\n')
+                print('Sleep accuracy at epoch', e+1)
+                sleep_accuracy  = self.eval().item()
+                sleep_accuracy_list.append(sleep_accuracy)
+                self.model.wake = True
+    
+            
     def eval(self):
         self.model.eval()
         test_loss = 0
@@ -191,54 +225,20 @@ class Trainer:
         # Return accuracy 
         return correct / len(self.test_data.dataset)
 
-class Logger:
-    def __init__(self):
-        self.run_info = {}
-
-    def add_log(self,run_num,name,values):
-        # Add the infos to the run_info dictionary
-        run_num = str(run_num)
-        if run_num not in self.run_info:
-            self.run_info[run_num] = {}
-        self.run_info[run_num][name] = values
-    
-    def write_to_csv(self, file_name):
-        # Create DataFrame from input dictionary
-        df = pd.DataFrame.from_dict(self.run_info, orient='index')
-        if os.path.isfile (file_name):
-            old_df = pd.read_csv(file_name)
-            df = pd.concat([old_df, df], ignore_index=True)
-        df.to_csv(file_name, index=False)
-    
-        
-    def plot_with_std(self,data, labels):
-        # Plot the data
-        for i, d in enumerate(data):
-            plt.plot(d, label=labels[i])
-
-        # Compute the standard deviation
-        std = np.std(data, axis=0)
-
-        # Plot the standard deviation transparently behind the run lines
-        plt.fill_between(range(len(std)), np.min(data, axis=0)-std, np.max(data, axis=0)+std, alpha=0.2) # alpha is the transparency
-        plt.legend()
-        plt.show()
-        plt.savefig('plot.png')
-        
             
-@hydra.main(version_base=None, config_path="conf", config_name="config")
-def main(cfg : DictConfig) -> None:
+#@hydra.main(version_base=None, config_path="conf", config_name="config")
+def main() -> None: # cfg : DictConfig
     # Load default config
     default_config = OmegaConf.structured(Config)
     # Merge default config with run config, run config overrides if there is a conflict
-    config = OmegaConf.merge(default_config, cfg)
+    #config = OmegaConf.merge(default_config, cfg)
     #OmegaConf.save(config, 'config.yaml') 
+    config = default_config
     
-    
-    hydra_cfg = hydra.core.hydra_config.HydraConfig.get()
-    job_num = hydra_cfg.job.num
+    #hydra_cfg = hydra.core.hydra_config.HydraConfig.get()
+    """job_num = hydra_cfg.job.num
     print(f'Hydra job number: {job_num}')
-    config.job_num = job_num
+    config.job_num = job_num"""
     
     trainer = Trainer(config)
     trainer.train(config.epoch)

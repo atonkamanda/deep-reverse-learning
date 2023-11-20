@@ -3,7 +3,7 @@
 
 This repo is the result of a research idea I've tried in my master degree:
 
-I was inspired by Francis Crick theory of [Sleep](https://www.nature.com/articles/304111a0) that sleep and REM sleep's function is for doing [Reverse learning]([https://www.nature.com/articles/304111a0](https://en.wikipedia.org/wiki/Reverse_learning#:~:text=Reverse%20learning%20is%20a%20neurobiological,the%20REM%20phase%20of%20sleep.)) that is to remove parasitic connection that happened during wakeful learning.
+I was inspired by Francis Crick theory of [Sleep](https://www.nature.com/articles/304111a0) that sleep and REM sleep's function is for doing [Reverse learning](https://en.wikipedia.org/wiki/Reverse_learning) that is to remove parasitic connection that happened during wakeful learning.
 
 My main insight for this project was to connect this idea with Jaynes's maximum entropy principle.
 

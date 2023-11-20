@@ -5,9 +5,9 @@ This repo is the result of a research idea I've tried in my master degree:
 
 I was inspired by Francis Crick theory of [Sleep](https://www.nature.com/articles/304111a0) that sleep and REM sleep's function is for doing [Reverse learning](https://en.wikipedia.org/wiki/Reverse_learning) that is to remove parasitic connection that happened during wakeful learning.
 
-My main insight for this project was to connect this idea with Jaynes's maximum entropy principle.
+My main insight for this project was to connect this idea with Jaynes's maximum entropy principle which states that the probability distribution which best represents the current state of knowledge about a system is the one with largest entropy
 
- The idea is to have a wake-sleep algorithm where during the wake phase the neural netowork is learning in the normal setting backpropagating the gradient of the loss of interest with real data, and during the sleep phase give noise in the input and backpropagating the weights with respect to the softmax entropy.
+ The idea is to do entropy regularization via a wake-sleep algorithm where during the wake phase the neural network is learning in the normal setting backpropagating the gradient of the loss of interest with real data, and during the sleep phase give noise in the input and backpropagating the weights with respect to the softmax entropy.
 
  The insight was none of the softmax category should be highly active or inactive when the model see noise in input so bu it would naturally kill parasitic connection and regularize the network.
 

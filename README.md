@@ -18,7 +18,7 @@ My main insight for this project was to connect this idea with Jaynes's maximum 
 
 test
 **Idea:**
-
+**Wake phase**                                  **Sleep phase**
 ![animation1](figures/mnist_digits.gif)  ![animation2](figures/noise2.gif) 
 
 

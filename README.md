@@ -9,7 +9,12 @@ My main insight for this project was to connect this idea with Jaynes's maximum 
 
  The idea is to do entropy regularization via a wake-sleep algorithm where during the wake phase the neural network is learning in the normal setting backpropagating the gradient of the loss of interest with real data, and during the sleep phase give noise in the input and backpropagating the weights with respect to the softmax entropy.
 
- The insight was none of the softmax category should be highly active or inactive when the model see noise in input so bu it would naturally kill parasitic connection and regularize the network.
+ Since according to Jaynnes maximum entropy principle and how we would like the neural network to behave none of the categories should be highly active or inactive when the model get noise in input, doing so will naturally kill parasitic connections and regularize the network to a better set of weights without any additional data points.
+
+
+
+
+ 
 
 
  Unfortunately I wasn't able to make this idea work but I might come back to it.

@@ -21,7 +21,7 @@ My main insight for this project was to connect this idea with Jaynes's maximum 
                      
 ![animation1](figures/mnist_digits.gif)  ![animation2](figures/noise2.gif) 
 
-_**Left: Wake phase Right: Sleep phase**_
+_**Left: Wake phase classical loss minimization with real data Right: Sleep phase entropy maximization with noise**_
 
 
 

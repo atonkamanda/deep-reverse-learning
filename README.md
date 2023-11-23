@@ -16,13 +16,12 @@ My main insight for this project was to connect this idea with Jaynes's maximum 
 
  Unfortunately I wasn't able to make this idea work but I might come back to it.
 
-test
+
 **Idea:**
-**Wake phase**                                  **Sleep phase**
+                     
 ![animation1](figures/mnist_digits.gif)  ![animation2](figures/noise2.gif) 
 
-![animation1](animation1)
-*This is a comment or caption below the image.*
+![Wake](figures/mnist_digits.gif) ![Sleep](figures/noise2.gif)
 
 
  

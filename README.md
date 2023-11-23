@@ -20,7 +20,8 @@ My main insight for this project was to connect this idea with Jaynes's maximum 
 **Idea:**
                      
 ![animation1](figures/mnist_digits.gif)  ![animation2](figures/noise2.gif) 
-*Left: Wake phase Right: Sleep phase*
+
+_**Left: Wake phase Right: Sleep phase**_
 
 
 

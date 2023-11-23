@@ -14,7 +14,13 @@ My main insight for this project was to connect this idea with Jaynes's maximum 
 
 
 
- 
-
-
  Unfortunately I wasn't able to make this idea work but I might come back to it.
+
+
+**Idea:**
+
+![animation1](figures/noise.gif) 
+
+
+
+ 

@@ -21,6 +21,8 @@ test
 **Wake phase**                                  **Sleep phase**
 ![animation1](figures/mnist_digits.gif)  ![animation2](figures/noise2.gif) 
 
+![Image Alt Text](animation1)
+*This is a comment or caption below the image.*
 
 
  

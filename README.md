@@ -22,6 +22,7 @@ According to Jaynes's maximum entropy principle and how we would like the neural
 ![animation1](figures/mnist_digits.gif)  ![animation2](figures/noise2.gif) 
 
 _**Left: Wake phase classical loss minimization with real data**_
+
 _**Right: Sleep phase entropy maximization with noise**_
 
 

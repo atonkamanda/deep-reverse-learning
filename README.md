@@ -14,7 +14,7 @@ According to Jaynes's maximum entropy principle and how we would like the neural
 
 
 
- Unfortunately, I wasn't able to make this idea work but I might come back to it.
+ Unfortunately, I wasn't able to make this idea work during my master degree but I am currently working on it with [Lucas Maes](https://lucas-maes.github.io/). 
 
 
 **Idea:**

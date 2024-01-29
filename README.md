@@ -1,4 +1,4 @@
-# Max entropy project
+# Deep reverse learning
 
 
 This repo is the result of a research idea I've tried in my master's degree:
